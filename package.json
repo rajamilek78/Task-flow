@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "build": "cd backend && npm install && npx tsc",
-    "start": "cd backend && npm install && npx tsc && node dist/index.js"
+    "start": "cd backend && npm install && ./node_modules/.bin/tsc && node dist/index.js"
   },
   "engines": {
     "node": ">=18.0.0"
