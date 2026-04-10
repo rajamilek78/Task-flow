@@ -5,6 +5,7 @@ import ActivityLog from '../models/ActivityLog';
 import Notification from '../models/Notification';
 import { AuthRequest } from '../types';
 import { getColumnTitle, WORKFLOW_COLUMNS } from '../utils/columns';
+import { notifyTaskCreated, notifyTaskMoved } from '../utils/slack';
 
 /**
  * @route   GET /api/tasks
@@ -95,6 +96,16 @@ export const createTask = async (req: AuthRequest, res: Response): Promise<void>
 
     await task.populate('assignees', 'name email avatar role');
     await task.populate('createdBy', 'name email avatar');
+
+    // Slack notification
+    notifyTaskCreated({
+      _id: task._id.toString(),
+      title: task.title,
+      columnId: task.columnId,
+      priority: task.priority,
+      assignees: (task.assignees as any[]).map((a) => ({ name: a.name })),
+      createdBy: { name: (task.createdBy as any).name },
+    });
 
     // Log activity
     await ActivityLog.create({
@@ -229,6 +240,19 @@ export const moveTask = async (req: AuthRequest, res: Response): Promise<void> =
 
     // Log the move
     if (fromColumn !== toColumn) {
+      // Slack notification
+      notifyTaskMoved(
+        {
+          _id: task._id.toString(),
+          title: task.title,
+          priority: task.priority,
+          assignees: (task.assignees as any[]).map((a) => ({ name: a.name || a.toString() })),
+        },
+        fromColumn,
+        toColumn,
+        req.user?.email || 'Someone'
+      );
+
       await ActivityLog.create({
         taskId: task._id,
         userId: req.user?.id,
