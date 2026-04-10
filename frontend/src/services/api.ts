@@ -54,6 +54,15 @@ export const taskApi = {
     api.post(`/tasks/${id}/comments`, { text }),
   getActivity: (id: string) => api.get(`/tasks/${id}/activity`),
   getStats: () => api.get('/tasks/stats/dashboard'),
+  uploadAttachment: (id: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post(`/tasks/${id}/attachments`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteAttachment: (taskId: string, attachmentId: string) =>
+    api.delete(`/tasks/${taskId}/attachments/${attachmentId}`),
 };
 
 // ─── Columns ─────────────────────────────────────────────────────────────────

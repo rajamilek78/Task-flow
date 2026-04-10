@@ -1,5 +1,7 @@
 // src/controllers/taskController.ts
 import { Response } from 'express';
+import path from 'path';
+import fs from 'fs';
 import Task from '../models/Task';
 import ActivityLog from '../models/ActivityLog';
 import Notification from '../models/Notification';
@@ -416,6 +418,87 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
         }, {}),
       },
     });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @route   POST /api/tasks/:id/attachments
+ * @desc    Upload an image or video attachment to a task
+ * @access  Private
+ */
+export const uploadAttachment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      res.status(404).json({ success: false, message: 'Task not found' });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({ success: false, message: 'No file uploaded' });
+      return;
+    }
+
+    const attachment = {
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      uploadedBy: req.user?.id,
+      uploadedAt: new Date(),
+    };
+
+    task.attachments.push(attachment as any);
+    await task.save();
+    await task.populate('attachments.uploadedBy', 'name email');
+
+    await ActivityLog.create({
+      taskId: task._id,
+      userId: req.user?.id,
+      action: 'edited',
+      details: `Uploaded file "${req.file.originalname}"`,
+    });
+
+    res.status(201).json({ success: true, attachments: task.attachments });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @route   DELETE /api/tasks/:id/attachments/:attachmentId
+ * @desc    Delete an attachment from a task
+ * @access  Private
+ */
+export const deleteAttachment = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      res.status(404).json({ success: false, message: 'Task not found' });
+      return;
+    }
+
+    const attachment = task.attachments.find(
+      (a: any) => a._id.toString() === req.params.attachmentId
+    );
+
+    if (!attachment) {
+      res.status(404).json({ success: false, message: 'Attachment not found' });
+      return;
+    }
+
+    // Delete file from disk
+    const filePath = path.join(__dirname, '../../uploads', attachment.filename);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+    task.attachments = task.attachments.filter(
+      (a: any) => a._id.toString() !== req.params.attachmentId
+    ) as any;
+    await task.save();
+
+    res.json({ success: true, attachments: task.attachments });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }
